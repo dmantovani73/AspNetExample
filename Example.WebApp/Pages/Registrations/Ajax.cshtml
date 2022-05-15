@@ -1,0 +1,108 @@
+﻿@page
+@model             AjaxModel
+@{
+    var apiUrl = ViewData["ApiUrl"];
+}
+
+@section Styles {
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.css" />
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid-theme.min.css" />
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datepicker/1.0.10/datepicker.min.css" />
+}
+
+@section Scripts {
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.3/moment.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/datepicker/1.0.10/datepicker.min.js"></script>
+<script type="text/javascript" src="~/js/DateField.js" asp-append-version="true"></script>
+
+<script>
+    $(function() {
+        login(initGrid);
+    })
+</script>
+}
+
+<div id="jsGrid"></div>
+
+<script>
+    // In uno scenario reale il token andrebbe rinnovato ogni volta che scade e non solo all'avvio.
+    let login = function(callback) {
+        let userName = prompt("User Name");
+        let password = prompt("Password");
+
+        $.ajax({
+            type: "POST",
+            url: "@apiUrl/login",
+            data: JSON.stringify({ userName: userName, password: password }),
+            dataType: "json",
+            contentType: "application/json"
+        })
+            .done(data => {
+                var expireAt = new Date(data.expireAt);
+                var timeout = expireAt - Date.now();
+                
+                setTimeout(() => { 
+                    alert("Session expired");
+                    location.reload();
+                }, timeout);
+                
+                callback(data.token);
+            })
+            .fail(() => 
+                alert("Invalid UserName or Password")
+            )
+    }
+
+    let initGrid = function(token) {
+        const url = "@apiUrl/users";
+
+        let ajax = function (item, verb, json = true) {
+            return $.ajax({
+                type: verb,
+                url: url,
+                data: json ? JSON.stringify(item) : item,
+                dataType: "json",
+                contentType: json ? "application/json" : "text/plain",
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+                },
+            });
+        }
+
+        $("#jsGrid").jsGrid({
+            height: "800px",
+            width: "100%",
+
+            filtering: true,
+            inserting: true,
+            editing: true,
+            sorting: true,
+            pageLoading: true,
+            paging: true,
+            autoload: true,
+
+            pageSize: 50,
+            pageButtonCount: 5,
+
+            deleteConfirm: "Do you really want to delete the item?",
+
+            controller: {
+                loadData: filter => ajax(filter, "GET", json = false),
+                insertItem: item => ajax(item, "POST"),
+                updateItem: item => ajax(item, "PUT"),
+                deleteItem: item => ajax(item, "DELETE"),
+            },
+
+            fields: [
+                { name: "id", type: "number", width: 50, title: "Id", readOnly: true },
+                { name: "name", type: "text", width: 150, title: "Name" },
+                { name: "email", type: "text", width: 150, title: "Email" },
+                { name: "phoneNumber", type: "text", width: 100, title: "Phone Number" },
+                { name: "birthDate", type: "date", width: 100, title: "Birth Date" },
+                { name: "country", type: "select", title: "Country", items: @(Html.Raw(Json.Serialize(Model.Countries))), valueField: "value", textField: "text", sorting: false },
+                { type: "control" }
+            ]
+        });
+    }
+</script>
